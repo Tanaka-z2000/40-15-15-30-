@@ -11,9 +11,9 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        /* 針對手機輸入框優化 */
+        /* Optimize number input for mobile */
         input[type="number"] {
-            font-size: 16px !important; /* 防止 iOS 自動縮放 */
+            font-size: 16px !important;
         }
         .no-scrollbar::-webkit-scrollbar {
             display: none;
@@ -41,7 +41,7 @@
                 cash: ''
             });
 
-            // 定義 40/15/15/30 目標
+            // Define 40/15/15/30 targets
             const TARGETS = {
                 t662: 0.40,
                 t631L: 0.15,
@@ -67,10 +67,10 @@
                     '00662': { ratio: v662 / totalWealth, amount: v662 },
                     '00631L': { ratio: v631L / totalWealth, amount: v631L },
                     '00670L': { ratio: v670L / totalWealth, amount: v670L },
-                    'cash': { ratio: cash / totalWealth, amount: cash }
+                    '現金部位': { ratio: cash / totalWealth, amount: cash }
                 };
 
-                // 核心邏輯：00662 只增不減 (或維持目標)，其餘部分按比例再平衡
+                // Logic: 00662 is long-term core (buy only/hold), others rebalanced
                 const targetV662Base = totalWealth * TARGETS.t662;
                 const finalV662 = Math.max(v662, targetV662Base); 
                 
@@ -130,9 +130,9 @@
                             <div className="grid grid-cols-2 gap-3">
                                 {[
                                     { id: 'v662', label: '00662 市值', icon: '📈' },
-                                    { id: 'cash', label: '現金額度', icon: '💰' },
                                     { id: 'v631L', label: '00631L 市值', icon: '⚡' },
-                                    { id: 'v670L', label: '00670L 市值', icon: '🦅' }
+                                    { id: 'v670L', label: '00670L 市值', icon: '🦅' },
+                                    { id: 'cash', label: '現金部位', icon: '💰' }
                                 ].map(item => (
                                     <div key={item.id} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm focus-within:border-blue-400 transition-colors">
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">{item.icon} {item.label}</label>
@@ -147,6 +147,13 @@
                                     </div>
                                 ))}
                             </div>
+                            {/* 總資產欄位 */}
+                            {report && (
+                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex justify-between items-center shadow-sm">
+                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider">目前總市值 (Total Sum)</span>
+                                    <div className="text-xl font-black text-blue-700">${Math.round(report.totalWealth).toLocaleString()}</div>
+                                </div>
+                            )}
                         </section>
 
                         {report ? (
@@ -154,18 +161,22 @@
                                 {/* Current Ratios */}
                                 <section>
                                     <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 mb-3">目前配置比例</h2>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 gap-3">
                                         {Object.entries(report.currentRatios).map(([name, data]) => {
-                                            const target = name === '00662' ? 0.4 : name === 'cash' ? 0.3 : 0.15;
+                                            const targetMap = { '00662': 0.40, '00631L': 0.15, '00670L': 0.15, '現金部位': 0.30 };
+                                            const target = targetMap[name];
                                             const diff = (data.ratio - target) * 100;
                                             return (
-                                                <div key={name} className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-between aspect-square shadow-sm">
+                                                <div key={name} className="bg-white p-5 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
                                                     <div>
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase">{name}</span>
-                                                        <div className="text-2xl font-black text-slate-800">{(data.ratio * 100).toFixed(1)}%</div>
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{name}</span>
+                                                        <div className="flex items-baseline gap-2">
+                                                            <div className="text-3xl font-black text-slate-800">{(data.ratio * 100).toFixed(1)}%</div>
+                                                            <div className="text-sm font-bold text-slate-400 tracking-tighter">${Math.round(data.amount).toLocaleString()}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className={`text-[10px] font-bold px-2 py-1 rounded-lg w-fit ${Math.abs(diff) < 2 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                                                        {Math.abs(diff) < 2 ? '符合目標' : `${diff > 0 ? '偏高' : '偏低'} ${Math.abs(diff).toFixed(1)}%`}
+                                                    <div className={`text-xs font-bold px-3 py-1.5 rounded-xl ${Math.abs(diff) < 2 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                        {Math.abs(diff) < 2 ? '符合目標' : `${diff > 0 ? '超標' : '偏低'} ${Math.abs(diff).toFixed(1)}%`}
                                                     </div>
                                                 </div>
                                             );
@@ -176,12 +187,12 @@
                                 {/* Action Steps */}
                                 <section>
                                     <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 mb-3">再平衡操作清單</h2>
-                                    <div className="bg-slate-900 rounded-3xl p-6 shadow-xl border-t-4 border-green-500">
+                                    <div className="bg-slate-900 rounded-[2rem] p-6 shadow-xl border-t-8 border-blue-500">
                                         {report.actions.length > 0 ? (
                                             <div className="space-y-4">
                                                 {report.actions.map((act, i) => (
-                                                    <div key={i} className="flex gap-3 items-start border-b border-slate-800 pb-3 last:border-0 last:pb-0">
-                                                        <span className="bg-slate-700 text-green-400 w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold mt-0.5 shrink-0">{i+1}</span>
+                                                    <div key={i} className="flex gap-4 items-start border-b border-slate-800 pb-3 last:border-0 last:pb-0">
+                                                        <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-1 shrink-0">{i+1}</span>
                                                         <span className="text-slate-100 text-sm font-bold leading-relaxed">{act}</span>
                                                     </div>
                                                 ))}
@@ -192,22 +203,27 @@
                                     </div>
                                 </section>
 
-                                {/* Target Amounts - 確保此模組正確顯示 */}
+                                {/* Target Amounts */}
                                 <section>
-                                    <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 mb-3">預計再平衡後目標市值</h2>
+                                    <div className="flex justify-between items-end mb-3 px-1">
+                                        <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">預計再平衡後目標市值</h2>
+                                        <div className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded">
+                                            目標總額: ${Math.round(report.totalWealth).toLocaleString()}
+                                        </div>
+                                    </div>
                                     <div className="space-y-3">
                                         {Object.entries(report.post).map(([key, data]) => {
-                                            const label = key === 'v662' ? '00662' : key === 'v631L' ? '00631L' : key === 'v670L' ? '00670L' : 'Cash 部位';
+                                            const labelMap = { v662: '00662', v631L: '00631L', v670L: '00670L', cash: '現金部位' };
                                             return (
                                                 <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
                                                     <div>
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase">{label}</div>
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1">{labelMap[key]}</div>
                                                         <div className="font-mono text-lg font-black text-slate-800 tracking-tighter">
                                                             ${Math.round(data.amount).toLocaleString()}
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <div className="text-[9px] font-bold text-blue-600 px-2 py-0.5 bg-blue-50 rounded inline-block">目標 {(data.ratio * 100).toFixed(0)}%</div>
+                                                        <div className="text-[9px] font-bold text-blue-600 px-2 py-0.5 bg-blue-50 rounded inline-block">目標佔比 {(data.ratio * 100).toFixed(0)}%</div>
                                                         <div className={`text-[10px] font-black mt-1 ${data.diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                                                             {data.diff >= 0 ? `+ $${Math.abs(Math.round(data.diff)).toLocaleString()}` : `- $${Math.abs(Math.round(data.diff)).toLocaleString()}`}
                                                         </div>
@@ -229,8 +245,8 @@
                     <footer className="mt-8 text-center px-4">
                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">40/15/15/30 Strategy</p>
                         <p className="text-[9px] text-slate-400 leading-relaxed font-bold">
-                            本助手僅供策略參考，投資前請審慎評估風險。<br/>
-                            建議每半年執行一次再平衡。
+                            穩定核心，動態平衡槓桿部位。<br/>
+                            建議每季執行一次再平衡。
                         </p>
                     </footer>
                 </div>
