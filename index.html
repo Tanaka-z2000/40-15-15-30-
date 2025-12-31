@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票資產配置計算器</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
+        .container { max-width: 400px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #333; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .result { margin-top: 20px; padding-top: 15px; border-top: 2px solid #eee; }
+        .item { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .highlight { font-weight: bold; color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>股票配置計算器</h2>
+        <div class="input-group">
+            <label>總資產金額 (或輸入各項加總)</label>
+            <input type="number" id="total" placeholder="輸入總額" oninput="calculate()">
+        </div>
+        <div class="result" id="output">
+            <p>請輸入金額以計算配置比例...</p>
+        </div>
+    </div>
+
+    <script>
+        const TARGETS = {
+            '00662 (40%)': 0.40,
+            '00631L (15%)': 0.15,
+            '00670L (15%)': 0.15,
+            '現金 (30%)': 0.30
+        };
+
+        function calculate() {
+            const total = document.getElementById('total').value;
+            const output = document.getElementById('output');
+            
+            if (!total || total <= 0) {
+                output.innerHTML = '<p>請輸入有效金額</p>';
+                return;
+            }
+
+            let html = '<h3>建議配置：</h3>';
+            for (const [name, rate] of Object.entries(TARGETS)) {
+                const amount = (total * rate).toLocaleString();
+                html += `<div class="item"><span>${name}</span><span class="highlight">$${amount}</span></div>`;
+            }
+            output.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
