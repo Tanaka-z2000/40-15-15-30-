@@ -57,6 +57,7 @@
                     'cash': { ratio: cash / totalWealth, amount: cash }
                 };
 
+                // 433 核心規則：00662 只買不賣
                 const targetV662Base = totalWealth * TARGETS.t662;
                 const finalV662 = Math.max(v662, targetV662Base); 
                 
@@ -74,41 +75,42 @@
                     cash: { ratio: finalCash / totalWealth, amount: finalCash, diff: finalCash - cash }
                 };
 
+                // 建議路徑排序：先賣後買
                 let actions = [];
                 const sellActions = [];
                 const buyActions = [];
 
-                if (post.v631L.diff < -1) sellActions.push(`從 00631L 賣出 ${Math.abs(Math.round(post.v631L.diff)).toLocaleString()} 元`);
-                if (post.v670L.diff < -1) sellActions.push(`從 00670L 賣出 ${Math.abs(Math.round(post.v670L.diff)).toLocaleString()} 元`);
-                if (post.cash.diff < -1) sellActions.push(`從現金提領 ${Math.abs(Math.round(post.cash.diff)).toLocaleString()} 元`);
+                if (post.v631L.diff < -1) sellActions.push(`從 00631L 賣出/贖回 ${Math.abs(Math.round(post.v631L.diff)).toLocaleString()} 元並轉入流動資金`);
+                if (post.v670L.diff < -1) sellActions.push(`從 00670L 賣出/贖回 ${Math.abs(Math.round(post.v670L.diff)).toLocaleString()} 元並轉入流動資金`);
+                if (post.cash.diff < -1) sellActions.push(`從現金部位提領 ${Math.abs(Math.round(post.cash.diff)).toLocaleString()} 元供調度`);
 
-                if (post.v662.diff > 1) buyActions.push(`買入 00662 共 ${Math.round(post.v662.diff).toLocaleString()} 元`);
-                if (post.v631L.diff > 1) buyActions.push(`投入 00631L 共 ${Math.round(post.v631L.diff).toLocaleString()} 元`);
-                if (post.v670L.diff > 1) buyActions.push(`投入 00670L 共 ${Math.round(post.v670L.diff).toLocaleString()} 元`);
-                if (post.cash.diff > 1) buyActions.push(`存回現金 ${Math.round(post.cash.diff).toLocaleString()} 元`);
+                if (post.v662.diff > 1) buyActions.push(`將流動資金撥出 ${Math.round(post.v662.diff).toLocaleString()} 元買入 00662`);
+                if (post.v631L.diff > 1) buyActions.push(`投入 ${Math.round(post.v631L.diff).toLocaleString()} 元至 00631L`);
+                if (post.v670L.diff > 1) buyActions.push(`投入 ${Math.round(post.v670L.diff).toLocaleString()} 元至 00670L`);
+                if (post.cash.diff > 1) buyActions.push(`將調整後的賸餘資金 ${Math.round(post.cash.diff).toLocaleString()} 元存回現金部位`);
 
                 actions = [...sellActions, ...buyActions];
                 return { totalWealth, currentRatios, actions, post };
             }, [values]);
 
-            // API 串接與語音邏輯 (保持原樣，需填入 API Key)
             const runAiAnalysis = async () => {
                 if (!report) return;
                 setIsAnalyzing(true);
-                const apiKey = ""; // 請在此填入您的 Gemini API Key
+                const apiKey = ""; // 請在此填入您的 API Key
                 try {
+                    const userPrompt = `總資產: ${Math.round(report.totalWealth)}。目前佔比: 00662(${(report.currentRatios['00662'].ratio*100).toFixed(1)}%), 00631L(${(report.currentRatios['00631L'].ratio*100).toFixed(1)}%), 00670L(${(report.currentRatios['00670L'].ratio*100).toFixed(1)}%), 現金(${(report.currentRatios['cash'].ratio*100).toFixed(1)}%)。`;
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: `總資產: ${report.totalWealth}。分析目前配置。` }] }],
-                            systemInstruction: { parts: [{ text: "你是一位 433 配置專家。" }] }
+                            contents: [{ parts: [{ text: userPrompt }] }],
+                            systemInstruction: { parts: [{ text: "你是一位 433 配置專家。請針對目前偏離程度與風險提供簡短建議。" }] }
                         })
                     });
                     const result = await response.json();
-                    setAiAnalysis(result.candidates?.[0]?.content?.parts?.[0]?.text || "分析完畢");
+                    setAiAnalysis(result.candidates?.[0]?.content?.parts?.[0]?.text || "分析完成");
                 } catch (err) {
-                    setAiAnalysis("請確認 API Key 是否填寫。");
+                    setAiAnalysis("無法連接到 AI。請檢查網路或 API Key 設定。");
                 } finally {
                     setIsAnalyzing(false);
                 }
@@ -116,12 +118,12 @@
 
             return (
                 <div className="p-4 sm:p-6 max-w-5xl mx-auto bg-gray-50 min-h-screen font-sans">
-                    <audio ref={audioRef} onEnded={() => setIsSpeaking(false)} />
                     <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl border border-gray-100">
                         <h1 className="text-2xl font-black text-gray-800 mb-8 border-b pb-4 flex items-center justify-center gap-3">
                             <span className="bg-blue-600 text-white p-1 rounded-lg">433</span> 智慧再平衡助手
                         </h1>
                         
+                        {/* 輸入區 */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                             {[
                                 { id: 'v662', label: '00662 市值', icon: '📈' },
@@ -143,48 +145,112 @@
                             ))}
                         </div>
 
-                        {report && (
+                        {report ? (
                             <div className="space-y-10">
-                                <div className="bg-gray-900 p-6 rounded-3xl text-white shadow-2xl text-center">
-                                    <div className="text-xs font-bold text-blue-400 mb-1 uppercase tracking-widest">總資產淨值</div>
-                                    <div className="text-4xl font-black">${Math.round(report.totalWealth).toLocaleString()}</div>
+                                {/* 總額顯示與 AI 按鈕 */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+                                    <div className="md:col-span-1 bg-gray-900 p-6 rounded-3xl text-white shadow-lg text-center flex flex-col justify-center">
+                                        <div className="text-xs font-bold text-blue-400 mb-1 uppercase tracking-widest">總資產淨值</div>
+                                        <div className="text-3xl font-black">${Math.round(report.totalWealth).toLocaleString()}</div>
+                                    </div>
+                                    <button onClick={runAiAnalysis} disabled={isAnalyzing} className="md:col-span-2 bg-blue-600 text-white p-4 rounded-3xl font-black hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50">
+                                        {isAnalyzing ? "✨ AI 思考中..." : "✨ 執行智慧策略分析"}
+                                    </button>
                                 </div>
 
-                                <button onClick={runAiAnalysis} disabled={isAnalyzing} className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50">
-                                    {isAnalyzing ? "AI 分析中..." : "✨ 執行智慧策略分析"}
-                                </button>
-
                                 {aiAnalysis && (
-                                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-blue-900 text-sm whitespace-pre-wrap">
+                                    <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 text-blue-900 text-sm whitespace-pre-wrap leading-relaxed shadow-inner">
+                                        <div className="font-black mb-2 flex items-center gap-2">🤖 Gemini 策略點評:</div>
                                         {aiAnalysis}
                                     </div>
                                 )}
 
+                                {/* 目前配置狀態 - 還原詳細佔比與偏離度 */}
                                 <div>
-                                    <h2 className="text-lg font-black text-gray-800 mb-5">目前配置狀態</h2>
+                                    <h2 className="text-lg font-black text-gray-800 mb-5 flex items-center gap-3">
+                                        <span className="w-2 h-8 bg-blue-600 rounded-full"></span>
+                                        目前配置與偏離度
+                                    </h2>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {Object.entries(report.currentRatios).map(([name, data]) => (
-                                            <div key={name} className="p-5 bg-white border-2 border-gray-100 rounded-3xl shadow-sm">
-                                                <div className="text-[10px] font-black text-gray-400 uppercase">{name}</div>
-                                                <div className="text-xl font-black">{(data.ratio * 100).toFixed(1)}%</div>
-                                                <div className="text-xs text-gray-500 mt-1">${Math.round(data.amount).toLocaleString()}</div>
-                                            </div>
-                                        ))}
+                                        {Object.entries(report.currentRatios).map(([name, data]) => {
+                                            const target = name === '00662' ? 0.4 : name === 'cash' ? 0.3 : 0.15;
+                                            const diff = (data.ratio - target) * 100;
+                                            return (
+                                                <div key={name} className="flex flex-col p-5 bg-white border-2 border-gray-100 rounded-3xl shadow-sm hover:shadow-md transition-shadow">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">{name}</span>
+                                                        <span className="text-xl font-black text-gray-900">{(data.ratio * 100).toFixed(1)}%</span>
+                                                    </div>
+                                                    <div className="bg-gray-100 rounded-xl p-3 mb-3 border-l-4 border-gray-300">
+                                                        <div className="text-[9px] font-black text-gray-500 mb-0.5">目前市值</div>
+                                                        <div className="font-mono text-xs font-bold text-gray-700 break-all">
+                                                            ${Math.round(data.amount).toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                    <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit ${Math.abs(diff) < 2 ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                                                        {Math.abs(diff) < 2 ? '完美平衡' : `${diff > 0 ? '超標' : '不足'} ${Math.abs(diff).toFixed(1)}%`}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
+                                {/* 再平衡建議路徑 - 還原先賣後買邏輯 */}
                                 <div>
-                                    <h2 className="text-lg font-black text-gray-800 mb-5">再平衡操作建議</h2>
-                                    <div className="bg-gray-900 text-green-400 p-6 rounded-3xl font-mono text-sm leading-relaxed border-l-8 border-green-500">
+                                    <h2 className="text-lg font-black text-gray-800 mb-5 flex items-center gap-3">
+                                        <span className="w-2 h-8 bg-green-500 rounded-full"></span>
+                                        最佳再平衡建議路徑 (先賣後買)
+                                    </h2>
+                                    <div className="bg-gray-900 text-green-400 p-8 rounded-[2rem] font-mono text-sm leading-relaxed border-l-[12px] border-green-500 shadow-2xl">
                                         {report.actions.length > 0 ? report.actions.map((act, i) => (
-                                            <div key={i} className="mb-2">→ {act}</div>
-                                        )) : "配置比例完美，無需調整。"}
+                                            <div key={i} className="mb-4 whitespace-pre-wrap break-words border-b border-gray-800 pb-4 last:border-0 last:mb-0 flex items-start gap-4">
+                                                <span className="bg-gray-800 text-green-400 px-3 py-1 rounded-lg font-bold text-[10px] whitespace-nowrap">STEP {i + 1}</span>
+                                                <span className="text-gray-100 font-bold">{act}</span>
+                                            </div>
+                                        )) : <div className="text-center py-6 text-gray-500 italic">配置目前處於最佳狀態，無須變動。</div>}
+                                    </div>
+                                </div>
+
+                                {/* 預期目標市值 */}
+                                <div>
+                                    <h2 className="text-lg font-black text-gray-800 mb-6">✨ 預計再平衡後目標市值</h2>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {Object.entries(report.post).map(([key, data]) => {
+                                            const label = key === 'v662' ? '00662' : key === 'v631L' ? '00631L' : key === 'v670L' ? '00670L' : 'Cash';
+                                            return (
+                                                <div key={key} className="flex flex-col">
+                                                    <div className="flex justify-between items-end mb-3 px-2">
+                                                        <span className="text-gray-400 font-black text-[10px] uppercase">{label}</span>
+                                                        <span className="font-black text-2xl text-blue-600">{(data.ratio * 100).toFixed(1)}%</span>
+                                                    </div>
+                                                    <div className="bg-white border-2 border-gray-100 rounded-[1.5rem] p-5 shadow-sm min-h-[120px] flex flex-col justify-between transition-all hover:border-blue-300">
+                                                        <div>
+                                                            <div className="text-[10px] font-black text-gray-400 mb-1">目標市值</div>
+                                                            <div className="font-mono text-xl font-black text-gray-900 break-all leading-tight">
+                                                                ${Math.round(data.amount).toLocaleString()}
+                                                            </div>
+                                                        </div>
+                                                        <div className={`mt-2 p-2 rounded-xl text-center font-bold text-[10px] ${data.diff >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                            {data.diff >= 0 ? `需增加 $${Math.abs(Math.round(data.diff)).toLocaleString()}` : `需提領 $${Math.abs(Math.round(data.diff)).toLocaleString()}`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
+                        ) : (
+                            <div className="text-center py-32 bg-gray-50/50 border-4 border-dashed border-gray-100 rounded-[3rem] mt-10">
+                                <div className="text-7xl mb-6">📈</div>
+                                <p className="font-black text-gray-400 text-xl">請輸入各標的市值以展開 433 智慧佈局</p>
+                            </div>
                         )}
                     </div>
-                    <footer className="text-center py-10 text-gray-300 font-bold text-[10px] uppercase tracking-widest">433 System Intelligence</footer>
+                    <footer className="text-center py-10 text-gray-300 font-bold text-[10px] uppercase tracking-[0.2em]">
+                        433 System Intelligence · Optimized for Long-term Compounding
+                    </footer>
                 </div>
             );
         };
